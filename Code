@@ -1,0 +1,113 @@
+
+library(ggplot2)
+library(scales)
+library(reshape2)
+library(reshape)
+library(plyr)
+library(dplyr)
+
+covid.data <- read.csv("D:/NorthEastern/Supervised LearningSpring 2020/Project/covid.csv", stringsAsFactors=F, na.strings ="NA")
+
+dfs <- covid.data %>% 
+  dplyr::group_by(Country.Region, type) %>%
+  dplyr::summarise(total = sum(cases)) 
+
+dfs <- as.data.frame(dfs)
+
+dfs <- ddply(dfs, c("Country.Region"), transform, Percent = round(total*100/sum(total, na.rm = T), 1))
+
+names(dfs)[1] <- "Country"
+names(dfs)[3] <- "Total"
+head(dfs)
+dfs <- subset(dfs, dfs$Country %in% c("US", "Spain", "Italy", "France", "Germany", "United Kingdom", "China", "Iran", 
+                                      "Turkey", "Belgium")) 
+
+ggplot(dfs, aes(x = Country, y = Percent, fill = type, label = Percent)) +
+  geom_bar(stat = "identity") +
+  geom_text(size = 3, position = position_stack(vjust = 0.9))
+
+
+ggplot(dfs, aes(x = Country, y = Total, fill = type, label = Total)) + geom_bar(stat = "identity") 
+
+
+
+
+############################################code for age distribution of virus####################################
+
+
+covid_age=read.csv('D:/NorthEastern/Supervised LearningSpring 2020/Project/COVID-19Surveillance_COVID-NET_Entire Network_Data.csv',header=F,stringsAsFactors =FALSE,na.string=c("","null","NaN","NA"))
+names(covid_age)<-c('CATCHMENT','NETWORK','YEAR','MMWR-YEAR','MMWR-WEEK','AGE CATEGORY','CUMULATIVE RATE','WEEKLY RATE')
+head(covid_age,10)
+colSums(is.na(covid_age))
+covid_age<-covid_age[-1,]
+covid_age%>%group_by('AGE CATEGORY')%>%
+  dplyr::summarise(total = sum(as.integer(CUMULATIVERATE))) 
+
+covid_age<-as.data.frame(covid_age)
+myData<-na.omit(covid_age[6])
+
+
+completeFun <- function(data, desiredCols) {
+  completeVec <- complete.cases(data[, desiredCols])
+  return(data[completeVec, ])
+}
+covid_age<-completeFun(covid_age,c("AGE CATEGORY"))
+covid_age<-completeFun(covid_age,c("CUMULATIVE RATE"))
+
+
+covid_age<-covid_age[!(covid_age$`AGE CATEGORY`=='65+ yr'),]
+
+sort(sapply(covid_age, function(x) sum(is.na(x))), decreasing = TRUE)
+
+#cov<-covid_age%>%select(`MMWR-WEEK`,`AGE CATEGORY`,`CUMULATIVE RATE`)
+covid_age<-covid_age%>%mutate(Date=as.Date(paste(covid_age$`MMWR-YEAR`, covid_age$`MMWR-WEEK`, 1, sep="-"), "%Y-%U-%u"))
+
+covid_age%>%group_by('AGE CATEGORY')%>%select('AGE CATEGORY',"CUMULATIVE RATE",`WEEKLY RATE`)
+
+covid_age%>%ggplot(aes(x =Date, y =as.integer(`CUMULATIVE RATE`),color=`AGE CATEGORY`,group=`AGE CATEGORY`)) +
+  geom_line(size=1)+scale_fill_manual(values = c("#009999", "#e50000", "#cc0000","#f50000","#990033","00AFBB"))+scale_y_continuous(breaks = c(10,20,30,40,50,60,70,80,90,100,120))+ggrepel::geom_text_repel(data = covid_age, aes(label =`CUMULATIVE RATE`),point.padding = unit(0.5, "lines")) +ylab('Cumulative Hospitalization  Rate')
+
+
+library(wesanderson)
+pal <- wes_palette("Zissou1", 100, type = "continuous")
+
+covid_age%>%ggplot(aes(x =Date, y =as.integer(`CUMULATIVE RATE`),color=`AGE CATEGORY`,group=`AGE CATEGORY`)) +
+  geom_line(size=1)+scale_y_continuous(breaks = c(10,20,30,40,50,60,70,80,90,100,120))+ggrepel::geom_text_repel(data = covid_age, aes(label =`CUMULATIVE RATE`),point.padding = unit(0.5, "lines"))+scale_fill_gradientn(colours = pal)
+
+
+library(viridis)
+
+covid_age%>%ggplot(aes(x =Date, y =as.integer(`CUMULATIVE RATE`),color=`AGE CATEGORY`,group=`AGE CATEGORY`)) +
+  geom_line(size=1)+scale_y_continuous(breaks = c(10,20,30,40,50,60,70,80,90,100,120))+ggrepel::geom_text_repel(data = covid_age, aes(label =`CUMULATIVE RATE`),point.padding = unit(0.5, "lines"))+scale_color_brewer(palette = "Dark2")
+
+
+covid_age[order(covid_age$`CUMULATIVE RATE`,decreasing = TRUE),]
+
+covid_age[order(covid_age$`MMWR-WEEK`,-as.integer(covid_age$`CUMULATIVE RATE`)),5:7]
+
+
+########################################confirmed and dead cases in usa#####################
+
+
+coronavirus %>% 
+  dplyr::filter(Country.Region == "US",dateVals>"2020-03-15",type %in% c('confirmed','death'))%>%
+  ggplot(aes(x=dateVals,y=cases,fill=type))+geom_bar(stat="identity",position="dodge")+scale_fill_manual(values = c("blue", "#e50000", "#cc0000","green"))+
+  xlab('Date')+ylab('Confirmed and death cases in USA')
+
+
+#plotly#####
+
+tid<-coronavirus %>% 
+  dplyr::filter(Country.Region == "US",dateVals>"2020-03-15",type %in% c('confirmed','death'))%>%
+  tidyr::pivot_wider(names_from = type, values_from = cases)%>%
+  select(Country.Region,dateVals,confirmed,death)
+tid<-as.data.frame(tid)
+
+x1<-plotly(tid,x=~dateVals,y=~confirmed,type='bar',name='COnfirmed')
+x1 <- plot_ly(tid, x = ~dateVals, y = ~confirmed, type = 'bar', name = 'confirmed')
+x1 <- x1 %>% add_trace(y = ~death, name = 'death')
+x1 <- x1 %>% layout(yaxis = list(title = 'Count'), barmode = 'group')
+
+
+############################
+
